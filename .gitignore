@@ -36,7 +36,7 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
+# Unit tests / coverage reports
 htmlcov/
 .tox/
 .nox/
@@ -218,3 +218,18 @@ __marimo__/
 .streamlit/secrets.toml
 datasets/
 .idea/
+# PyCharms
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Data files (BEIR 太大，不传 GitHub)
+data/
+
+# Environment
+.env
+*.log
