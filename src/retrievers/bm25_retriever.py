@@ -19,7 +19,6 @@ def _tokenize(text: str) -> list[str]:
     Example:
         _tokenize("Vitamin D Helps")  -> ["vitamin", "d", "helps"]
     """
-    # TODO: 你来填（1 行代码：lower() + split()）
     return text.lower().split()
 
 
