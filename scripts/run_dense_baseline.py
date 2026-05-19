@@ -10,7 +10,7 @@ sys.path.insert(0, str(project_root))
 
 from src.data_loader import load_scifact
 from src.retrievers.dense_retriever import DenseRetriever
-from src.evaluator import recall_at_k, mrr, ndcg_at_k
+from src.evaluator import recall_at_k, mrr, ndcg_at_k, evaluate_retriever
 
 
 def main():
@@ -22,18 +22,16 @@ def main():
 
     # Step 2: 建 Dense 索引
 
-
     print("[INFO] Building dense index (BGE encoding ~30s)...")
     retriever = DenseRetriever()
     retriever.index(corpus)
     print("[INFO] Index built.")
 
-
     # Step 3: 遍历 queries，构造 predicted_list 和 gold_list
 
     top_k = 10
-    predicted_list = []   # 外层 list, 每元素是 [doc_id, doc_id, ...]
-    gold_list = []        # 外层 list, 每元素是 {doc_id, doc_id, ...} (set)
+    predicted_list = []  # 外层 list, 每元素是 [doc_id, doc_id, ...]
+    gold_list = []  # 外层 list, 每元素是 {doc_id, doc_id, ...} (set)
     # Sanity check: 确认每条 query 都有 qrels 标注
     missing = [qid for qid in queries if qid not in qrels]
     if missing:
@@ -50,8 +48,6 @@ def main():
         predicted_list.append(predicted)
         gold_list.append(gold)
 
-
-
     # Step 4: 计算评估指标
 
     # mrr 是 list-of-list 入口, 直接传整体
@@ -62,6 +58,14 @@ def main():
     avg_recall = sum(recall_scores) / len(recall_scores)
     ndcg_scores = [ndcg_at_k(p, g, k=top_k) for p, g in zip(predicted_list, gold_list)]
     avg_ndcg = sum(ndcg_scores) / len(ndcg_scores)
+    # Step 4b: 对照测试 - 用新的 evaluate_retriever 函数再算一遍
+    metrics_new = evaluate_retriever(retriever, queries, qrels)
+
+    # 打印新函数的结果, 用来和上面 avg_recall/mrr_score/avg_ndcg 对比
+    print()
+    print("--- shadow run: evaluate_retriever() output ---")
+    for key, value in metrics_new.items():
+        print(f"  {key}: {value:.4f}")
 
     # Step 5: 打印结果
 
