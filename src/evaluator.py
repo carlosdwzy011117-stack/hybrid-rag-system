@@ -9,7 +9,7 @@
 - 当 gold 为空时，所有指标返回 0.0
 """
 import math
-from typing import List, Set
+from typing import Dict, List, Set, Tuple
 
 
 def recall_at_k(predicted: List[str], gold: Set[str], k: int) -> float:
@@ -62,3 +62,57 @@ def ndcg_at_k(predicted: List[str], gold: Set[str], k: int) -> float:
     if idcg == 0:
         return 0.0
     return dcg / idcg
+
+
+def evaluate_retriever(
+        retriever,
+        queries: Dict[str, str],
+        qrels: Dict[str, Dict[str, int]],
+        k_values: Tuple[int, ...] = (1, 5, 10, 20),
+) -> Dict[str, float]:
+    """
+    Run a retriever over all queries and compute Recall@K (multiple K), MRR, NDCG@max_K.
+
+    Pulls retriever.search(query, top_k=max(k_values)) once per query, then
+    slices the result list for each K. Empty-gold queries are kept and counted
+    as 0 (consistent with src.evaluator.recall_at_k behavior).
+
+    Args:
+        retriever: object with .search(query_text, top_k) -> list of (doc_id, score)
+        queries: dict[query_id -> query_text]
+        qrels: dict[query_id -> dict[doc_id -> relevance_int]]
+        k_values: K values for Recall@K. Largest is used as retrieval top_k
+                  and for the single NDCG metric.
+
+    Returns:
+        dict, e.g. {
+            "recall@1": 0.42, "recall@5": 0.71, "recall@10": 0.85, "recall@20": 0.91,
+            "mrr": 0.69,
+            "ndcg@20": 0.74,
+        }
+    """
+    # ─── 准备 ───
+    max_k = max(k_values)
+
+    # ─── 主循环: 跑 retriever, 收集每个 query 的 predicted 和 gold ───
+    predicted_list = []
+    gold_list = []
+    for query_id, query_text in queries.items():
+        results = retriever.search(query_text, top_k=max_k)
+        predicted = [doc_id for doc_id, _ in results]
+        gold = {doc_id for doc_id, score in qrels.get(query_id, {}).items() if score > 0}
+        predicted_list.append(predicted)
+        gold_list.append(gold)
+
+    # ─── 计算指标 ───
+    metrics = {}
+
+    for k in k_values:
+        recall_scores = [recall_at_k(p, g, k=k) for p, g in zip(predicted_list, gold_list)]
+        metrics[f"recall@{k}"] = sum(recall_scores) / len(recall_scores)
+
+    metrics["mrr"] = mrr(predicted_list, gold_list)
+    ndcg_scores = [ndcg_at_k(p, g, k=max_k) for p, g in zip(predicted_list, gold_list)]
+    metrics[f"ndcg@{max_k}"] = sum(ndcg_scores) / len(ndcg_scores)
+
+    return metrics
