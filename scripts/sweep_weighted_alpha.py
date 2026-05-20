@@ -10,28 +10,7 @@ from src.data_loader import load_scifact
 from src.retrievers.bm25_retriever import BM25Retriever
 from src.retrievers.dense_retriever import DenseRetriever
 from src.retrievers.weighted_retriever import WeightedRetriever
-from src.evaluator import recall_at_k, mrr, ndcg_at_k
-
-
-def evaluate(retriever, queries, qrels, top_k=10):
-    """Run a retriever over all queries and return (avg_recall, mrr_score, avg_ndcg)."""
-    predicted_list = []
-    gold_list = []
-    for query_id, query_text in queries.items():
-        results = retriever.search(query_text, top_k=top_k)
-        predicted = [doc_id for doc_id, _ in results]
-        gold = {doc_id for doc_id, score in qrels.get(query_id, {}).items() if score > 0}
-        predicted_list.append(predicted)
-        gold_list.append(gold)
-
-    mrr_score = mrr(predicted_list, gold_list)
-    recall_scores = [recall_at_k(p, g, k=top_k) for p, g in zip(predicted_list, gold_list)]
-    avg_recall = sum(recall_scores) / len(recall_scores)
-    ndcg_scores = [ndcg_at_k(p, g, k=top_k) for p, g in zip(predicted_list, gold_list)]
-    avg_ndcg = sum(ndcg_scores) / len(ndcg_scores)
-
-    return avg_recall, mrr_score, avg_ndcg
-
+from src.evaluator import evaluate_retriever
 
 
 def main():
@@ -56,18 +35,18 @@ def main():
     for alpha in alphas:
         weighted = WeightedRetriever(bm25, dense, alpha=alpha)
         # 注意：不调 weighted.index()，bm25/dense 已建好索引
-        recall, mrr_score, ndcg = evaluate(weighted, queries, qrels)
-        results_table.append((alpha, recall, mrr_score, ndcg))
-        print(f"[alpha={alpha:.1f}] Recall@10={recall:.4f}  MRR={mrr_score:.4f}  NDCG@10={ndcg:.4f}")
-
+        metrics = evaluate_retriever(weighted, queries, qrels)
+        results_table.append((alpha, metrics))
+        # 提示：从 metrics dict 取值，key 是 "recall@10" / "recall@20" / "mrr" / "ndcg@20"
+        print(f"[alpha={alpha:.1f}] Recall@10={metrics['recall@10']:.4f}  Recall@20={metrics['recall@20']:.4f}  MRR={metrics['mrr']:.4f}  NDCG@20={metrics['ndcg@20']:.4f}")
     # ---------- 4. 打印对照表 ----------
     print("\n" + "=" * 60)
     print("Weighted Retriever Alpha Sweep on SciFact (n=300)")
     print("=" * 60)
-    print(f"| {'alpha':<6} | {'Recall@10':<10} | {'MRR':<6} | {'NDCG@10':<8} |")
-    print(f"|{'-' * 8}|{'-' * 12}|{'-' * 8}|{'-' * 10}|")
-    for alpha, recall, mrr_score, ndcg in results_table:
-        print(f"| {alpha:<6.1f} | {recall:<10.4f} | {mrr_score:<6.4f} | {ndcg:<8.4f} |")
+    print(f"| {'alpha':<6} | {'Recall@10':<10} | {'Recall@20':<10} | {'MRR':<6} | {'NDCG@20':<8} | ")
+    print(f"|{'-' * 8}|{'-' * 12}|{'-' * 12}|{'-' * 8}|{'-' * 10}|")
+    for alpha, metrics in results_table:
+        print(f"| {alpha:<6.1f} | {metrics['recall@10']:<10.4f} | {metrics['recall@20']:<10.4f} | {metrics['mrr']:<6.4f} | {metrics['ndcg@20']:<8.4f} |")
 
 
 if __name__ == "__main__":
