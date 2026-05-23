@@ -9,7 +9,8 @@ from langchain_openai import ChatOpenAI
 from run_rag_pipeline import run_pipeline
 from ragas import evaluate
 from ragas.metrics import Faithfulness, AnswerRelevancy
-#from ragas.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
+from ragas.embeddings import LangchainEmbeddingsWrapper
 
 query, answer, docs = run_pipeline()
 
@@ -19,8 +20,10 @@ print("Docs 类型:", type(docs), "篇数:", len(docs))
 
 sample = SingleTurnSample(user_input=query, response=answer, retrieved_contexts=docs)
 dataset = EvaluationDataset(samples=[sample])
-#evaluator_embeddings = HuggingFaceEmbeddings(model="BAAI/bge-small-en-v1.5")
+emb = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
+evaluator_embeddings = LangchainEmbeddingsWrapper(emb)
 llm = ChatOpenAI(model="deepseek-chat", base_url="https://api.deepseek.com")
 evaluator_llm = LangchainLLMWrapper(llm)
-result = evaluate(dataset=dataset, metrics=[Faithfulness()], llm=evaluator_llm)
+result = evaluate(dataset=dataset, embeddings=evaluator_embeddings,
+                  metrics=[Faithfulness(), AnswerRelevancy(strictness=1)], llm=evaluator_llm)
 print(result)
