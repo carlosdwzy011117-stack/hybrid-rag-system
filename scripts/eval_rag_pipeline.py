@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from ragas import SingleTurnSample, EvaluationDataset
 from ragas.llms import LangchainLLMWrapper
 from langchain_openai import ChatOpenAI
-from run_rag_pipeline import run_pipeline
+from run_rag_pipeline import build_pipeline, answer_one
 from ragas import evaluate
 from ragas.metrics import Faithfulness, AnswerRelevancy
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -36,7 +36,7 @@ def run_eval_n_times(dataset, evaluator_llm, evaluator_embeddings, n=5):
     for i in range(n):
         a = run_eval_once(dataset, evaluator_llm, evaluator_embeddings)
         results.append(a)
-        print(f"第{i + 1 }次: {a}")
+        print(f"第{i + 1}次: {a}")
     return results
 
 
@@ -55,15 +55,27 @@ def summarize(results):
 
 # ===== 主流程 =====
 if __name__ == '__main__':
-    query, answer, docs = run_pipeline()
-    sample = SingleTurnSample(user_input=query, response=answer, retrieved_contexts=docs)
-    dataset = EvaluationDataset(samples=[sample])
-    emb = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
-    evaluator_embeddings = LangchainEmbeddingsWrapper(emb)
-    llm = ChatOpenAI(model="deepseek-chat", base_url="https://api.deepseek.com")
+    # ===== 只做一次的准备(循环外) =====
+    corpus, queries, _, retriever, gen = build_pipeline()
+    llm = ChatOpenAI(model="deepseek-chat", base_url="https://api.deepseek.com")  # 旧代码搬过来
     evaluator_llm = LangchainLLMWrapper(llm)
+    emb = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")  # 旧代码搬过来
+    evaluator_embeddings = LangchainEmbeddingsWrapper(emb)
 
-    results = run_eval_n_times(dataset, evaluator_llm, evaluator_embeddings, n=5)
-    print("每次结果:", results)
-    summary = summarize(results)
-    print("汇总:", summary)
+    # ===== 对每条难样本各重跑 5 次,分开统计 =====
+
+    candidate_qids = ["49", "42"]
+
+    for qid in candidate_qids:
+        print(f"\n{'=' * 60}\n[QID {qid}] running 5x...\n{'=' * 60}")
+
+        query, answer, docs = answer_one(qid, queries, corpus, retriever, gen)
+
+        sample = SingleTurnSample(user_input=query, response=answer, retrieved_contexts=docs)
+        dataset = EvaluationDataset(samples=[sample])
+
+        results = run_eval_n_times(dataset, evaluator_llm, evaluator_embeddings, n=5)
+        print(f"[QID {qid}] 每次结果:", results)
+
+        summary = summarize(results)
+        print(f"[QID {qid}] 汇总:", summary)
