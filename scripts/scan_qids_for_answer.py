@@ -13,7 +13,7 @@ from run_rag_pipeline import build_pipeline, answer_one
 
 
 def main():
-    candidate_qids = ["1", "3", "5", "13", "36", "42", "48", "49"]
+    candidate_qids = ["50", "53", "57", "70", "75", "94", "100", "115", "124", "130", "137", "146"]
     print("[INFO] Building pipeline (index once)...")
     corpus, queries, _, retriever, gen = build_pipeline()
     print(f"[INFO] Done. Loaded queries={len(queries)}, corpus={len(corpus)}\n")
