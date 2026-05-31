@@ -53,6 +53,47 @@ def summarize(results):
     return summary
 
 
+def compute_within_group_variance(results, metric_name):
+    """组内方差：每个 qid 5 次重跑的方差，再对所有 qid 求平均。
+
+    度量"裁判 LLM 的不稳定性"——同一 query 同一答案，多次评估分数应该一样，
+    波动只来自 LLM 的内在随机性。
+
+    Args:
+        results: 嵌套 dict {qid: list[dict]}，每个 dict 含 'faithfulness' 等 metric
+        metric_name: 'faithfulness' 或 'answer_relevancy'
+
+    Returns:
+        float: 组内方差均值（用 sample variance ddof=1）
+    """
+    variances = []
+    for qid, runs in results.items():
+        values = [r[metric_name] for r in runs]
+        variance = statistics.variance(values)
+        variances.append(variance)
+    return statistics.mean(variances)
+
+
+def compute_between_group_variance(results, metric_name):
+    """组间方差：每个 qid 的 5 次重跑均值，再对这些均值算方差。
+
+    度量"样本难度的真实差异"——不同 query 本身就该有不同的真实分数。
+
+    Args:
+        results: 同上
+        metric_name: 同上
+
+    Returns:
+        float: 组间方差 (用 sample variance ddof=1)
+    """
+    group_means = []
+    for qid, runs in results.items():
+        values = [r[metric_name] for r in runs]
+        group_mean = statistics.mean(values)
+        group_means.append(group_mean)
+    return statistics.variance(group_means)
+
+
 # ===== 主流程 =====
 if __name__ == '__main__':
     # ===== 只做一次的准备(循环外) =====
@@ -64,18 +105,25 @@ if __name__ == '__main__':
 
     # ===== 对每条难样本各重跑 5 次,分开统计 =====
 
-    candidate_qids = ["49", "42"]
-
+    candidate_qids = ["49", "124", "42", "57", "137"]
+    nested_results = {}
     for qid in candidate_qids:
         print(f"\n{'=' * 60}\n[QID {qid}] running 5x...\n{'=' * 60}")
-
         query, answer, docs = answer_one(qid, queries, corpus, retriever, gen)
 
         sample = SingleTurnSample(user_input=query, response=answer, retrieved_contexts=docs)
         dataset = EvaluationDataset(samples=[sample])
 
         results = run_eval_n_times(dataset, evaluator_llm, evaluator_embeddings, n=5)
+        nested_results[qid] = results
         print(f"[QID {qid}] 每次结果:", results)
 
         summary = summarize(results)
         print(f"[QID {qid}] 汇总:", summary)
+    faithfulness_within = compute_within_group_variance(nested_results, "faithfulness")
+    faithfulness_between = compute_between_group_variance(nested_results, "faithfulness")
+    answer_relevancy_within = compute_within_group_variance(nested_results, "answer_relevancy")
+    answer_relevancy_between = compute_between_group_variance(nested_results, "answer_relevancy")
+    print("=== Variance Decomposition ===")
+    print(f"faithfulness:     within={faithfulness_within:.4f}  between={faithfulness_between:.4f}")
+    print(f"answer_relevancy: within={answer_relevancy_within:.4f}  between={answer_relevancy_between:.4f}")
