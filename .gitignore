@@ -233,3 +233,4 @@ data/
 # Environment
 .env
 *.log
+.Rhistory
