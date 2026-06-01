@@ -64,7 +64,9 @@ streamlit run app.py
 
 解法：从 rank-based 的 RRF 切换为 **score-based Weighted Sum + min-max 归一化 + α 调优**。
 
-<!-- TODO Day 20: 插入 alpha_sweep.png 图 -->
+<p align="center">
+  <img src="docs/alpha_sweep.png" alt="α sweep results" width="85%"/>
+</p>
 
 | α | Recall@10 | MRR | NDCG@10 | 备注 |
 |---|---|---|---|---|
