@@ -1,0 +1,27 @@
+# Hybrid RAG System dependencies
+# Tested on Python 3.10
+
+# Retrieval
+rank_bm25>=0.2.2
+sentence-transformers>=2.7.0
+faiss-cpu>=1.7.4
+numpy>=1.24.0
+
+# Data loading
+beir>=2.0.0
+
+# Generation (LLM)
+openai>=1.0.0
+
+# Evaluation
+ragas==0.4.3
+langchain-huggingface>=0.1.0
+
+# Demo
+streamlit>=1.30.0
+
+# Visualization
+matplotlib>=3.7.0
+
+# Testing
+pytest>=7.0.0
